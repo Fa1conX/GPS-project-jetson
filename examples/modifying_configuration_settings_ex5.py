@@ -38,7 +38,7 @@ import serial
 
 from ublox_gps import UbloxGps
 
-port = serial.Serial('/dev/serial0', baudrate=38400, timeout=1)
+port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=1)
 gps = UbloxGps(port)
 
 def run():
