@@ -17,6 +17,12 @@ from ublox_gps import UbloxGps
 port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=1)
 gps = UbloxGps(port)
 
+# Prompt user for record frequency
+if __name__ == '__main__':
+    record_frequency = float(input("Enter the record frequency in seconds (e.g., 1 for 1 second): "))
+else:
+    record_frequency = 0.25  # default to 0.25 seconds if not run as main
+
 # Name output GPX file with timestamp
 timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
 gpx_filename = f"gps_log_{timestamp}.gpx"
@@ -68,7 +74,7 @@ def run():
                     time.sleep(1)
                 except (ValueError, IOError) as err:
                     print("GPS read error:", err)
-                    time.sleep(0.5)
+                    time.sleep(record_frequency)
 
         except KeyboardInterrupt:
             print("\nStopping recording...")
