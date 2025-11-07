@@ -71,7 +71,7 @@ def run():
                         f.flush()
                     else:
                         print("Waiting for valid fix...")
-                    time.sleep(1)
+                    time.sleep(record_frequency)
                 except (ValueError, IOError) as err:
                     print("GPS read error:", err)
                     time.sleep(record_frequency)

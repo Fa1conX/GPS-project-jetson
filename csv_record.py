@@ -23,7 +23,7 @@ if __name__ == '__main__':
     record_frequency = float(input("Enter the record frequency in seconds (e.g., 1 for 1 second): "))
 else:
     record_frequency = 0.25  # default to 0.25 seconds if not run as main
-    
+
 # Name output CSV file with timestamp
 timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
 csv_filename = f"gps_log_{timestamp}.csv"
@@ -55,7 +55,7 @@ def run():
                         csvfile.flush()
                     else:
                         print("Waiting for valid fix...")
-                    time.sleep(1)
+                    time.sleep(record_frequency)
                 except (ValueError, IOError) as err:
                     print("GPS read error:", err)
                     time.sleep(record_frequency)
