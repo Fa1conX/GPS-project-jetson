@@ -8,6 +8,7 @@
 # Logs latitude, longitude, elevation, and heading.
 #-----------------------------------------------------------------------------
 
+import os
 import serial
 import time
 from datetime import datetime
@@ -23,9 +24,14 @@ if __name__ == '__main__':
 else:
     record_frequency = 0.25  # default to 0.25 seconds if not run as main
 
+# Create "results" directory if it doesn't exist
+results_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+os.makedirs(results_dir, exist_ok=True)
+    
+
 # Name output GPX file with timestamp
 timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-gpx_filename = f"gps_log_{timestamp}.gpx"
+gpx_filename = os.path.join(results_dir, f"gps_log_{timestamp}.gpx")
 
 def write_gpx_header(f):
     f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
@@ -48,7 +54,7 @@ def write_gpx_point(f, lat, lon, ele, heading):
     f.write(f'        <time>{timestamp_str}</time>\n')
     f.write('      </trkpt>\n')
 
-def run():
+def run_gpx(record_frequency=record_frequency):
     print(f"Recording GPS data to {gpx_filename}")
     with open(gpx_filename, "w") as f:
         write_gpx_header(f)
@@ -85,4 +91,4 @@ def run():
             print(f"Saved GPX file: {gpx_filename}")
 
 if __name__ == '__main__':
-    run()
+    run_gpx()

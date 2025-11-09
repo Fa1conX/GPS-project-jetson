@@ -1,13 +1,4 @@
-#!/usr/bin/env python3
-#-----------------------------------------------------------------------------
-# record_gps_to_csv.py
-#
-# Records GPS data from a Ublox ZED-F9R to a .csv file
-# using the SparkFun ublox_gps Python library.
-#
-# Logs latitude, longitude, elevation, and heading.
-#-----------------------------------------------------------------------------
-
+import os
 import serial
 import time
 import csv
@@ -24,11 +15,15 @@ if __name__ == '__main__':
 else:
     record_frequency = 0.25  # default to 0.25 seconds if not run as main
 
+# Create "results" directory if it doesn't exist
+results_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+os.makedirs(results_dir, exist_ok=True)
+
 # Name output CSV file with timestamp
 timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-csv_filename = f"gps_log_{timestamp}.csv"
+csv_filename = os.path.join(results_dir, f"gps_log_{timestamp}.csv")
 
-def run():
+def run_csv(record_frequency=record_frequency):
     print(f"Recording GPS data to {csv_filename}")
     with open(csv_filename, "w", newline="") as csvfile:
         csv_writer = csv.writer(csvfile)
@@ -68,4 +63,4 @@ def run():
             print(f"Saved CSV file: {csv_filename}")
 
 if __name__ == '__main__':
-    run()
+    run_csv()
