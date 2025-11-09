@@ -1,0 +1,31 @@
+#This is the command to start the vncserver:
+x0vncserver -rfbauth ~/.vnc/passwd -display :0
+
+#NOTES for ZED-F9R GPS setup:
+link for hookup guide and python package setup: https://learn.sparkfun.com/tutorials/sparkfun-gps-rtk-dead-reckoning-zed-f9r-hookup-guide/u-blox-python-package
+#for getting things set up for the ZED-F9R gps module to communicate
+#over serial UART port '/dev/ttyTHS1' on gpio pins 8 and 10 you have to do these steps:
+1. disable the nvgetty service: (first check if its active)
+	sudo systemctl status serial-getty@ttyTHS1.service
+	sudo systemctl stop serial-getty@ttyTHS1.service
+	sudo systemctl disable serial-getty@ttyTHS1.service
+2. add user to dialout group:
+	sudo usermod -aG dialout $USER
+3. reboot for this to take effect
+
+4. test in python: running this will either work or throw a permission denied error:
+	import serial
+	ser = serial.Serial('/dev/ttyTHS1', 115200)
+5. you may also have to stop this service too: 
+	sudo systemctl stop serial-getty@ttyTHS1.service
+	sudo systemctl disable serial-getty@ttyTHS1.service
+6. change permissions on the port from being a tty group device to one the user can access
+	temporarily for testing: 
+		sudo chmod 666 /dev/ttyTHS1
+	if that works, then make it permenant:
+		sudo nano /etc/udev/rules.d/99-uart-permissions.rules
+		COPY THIS INTO THAT FILE:
+			KERNEL=="ttyTHS1", MODE="0666"
+		run this command: 
+			sudo udevadm control --reload-rules && sudo udevadm trigger
+		then REBOOT
