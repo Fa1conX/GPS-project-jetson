@@ -68,7 +68,7 @@ def run_gpx(record_frequency=record_frequency):
                         # Use PVT fields: lat, lon, height (mm), headMot (deg * 1e-5)
                         lat = geo.lat
                         lon = geo.lon
-                        ele = getattr(geo, 'height', 0.0)  # height above ellipsoid (meters)
+                        ele = getattr(geo, 'height', 0.0) / 1000.0  # height above ellipsoid (convert mm to meters)
                         heading = getattr(geo, 'headMot', 0.0)  # heading of motion (degrees)
                         
                         print(f"Lat: {lat:.8f}, Lon: {lon:.8f}, Ele: {ele:.2f} m, Heading: {heading:.2f}°")

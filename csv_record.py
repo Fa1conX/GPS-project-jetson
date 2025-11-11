@@ -39,7 +39,7 @@ def run_csv(record_frequency=record_frequency):
                         # Use PVT fields: lat, lon, height (mm), headMot (deg * 1e-5)
                         lat = geo.lat
                         lon = geo.lon
-                        ele = getattr(geo, 'height', 0.0)  # height above ellipsoid (meters)
+                        ele = getattr(geo, 'height', 0.0) / 1000.0  # height above ellipsoid (convert mm to meters)
                         heading = getattr(geo, 'headMot', 0.0)  # heading of motion (degrees)
                         timestamp_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
                         
