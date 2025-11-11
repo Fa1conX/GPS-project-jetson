@@ -5,8 +5,10 @@ x0vncserver -rfbauth ~/.vnc/passwd -display :0
 link for hookup guide and python package setup: https://learn.sparkfun.com/tutorials/sparkfun-gps-rtk-dead-reckoning-zed-f9r-hookup-guide/u-blox-python-package
 #for getting things set up for the ZED-F9R gps module to communicate
 #over serial UART port '/dev/ttyTHS1' on gpio pins 8 and 10 you have to do these steps:
-1. disable the nvgetty service: (first check if its active)
+1. disable the nvgetty service: (first check if its active)	
 	sudo systemctl status serial-getty@ttyTHS1.service
+	sudo systemctl stop nvgetty
+	sudo systemctl disable nvgetty
 	sudo systemctl stop serial-getty@ttyTHS1.service
 	sudo systemctl disable serial-getty@ttyTHS1.service
 2. add user to dialout group:
