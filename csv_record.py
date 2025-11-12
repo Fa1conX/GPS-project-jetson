@@ -42,7 +42,7 @@ def run_csv(record_frequency=record_frequency):
                         ele = getattr(geo, 'height', 0.0) / 1000.0  # height above ellipsoid (convert mm to meters)
                         heading = getattr(geo, 'headMot', 0.0)  # heading of motion (degrees)
                         timestamp_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-                        
+
                         print(f"Timestamp: {timestamp_str}, Lat: {lat:.8f}, Lon: {lon:.8f}, Ele: {ele:.2f} m, Heading: {heading:.2f}°")
 
                         # Write data to CSV
