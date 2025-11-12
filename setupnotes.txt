@@ -1,5 +1,5 @@
 #This is the command to start the vncserver:
-x0vncserver -rfbauth ~/.vnc/passwd -display :0
+x0vncserver -rfbauth ~/.vnc/passwd -display :0 
 
 #NOTES for ZED-F9R GPS setup:
 link for hookup guide and python package setup: https://learn.sparkfun.com/tutorials/sparkfun-gps-rtk-dead-reckoning-zed-f9r-hookup-guide/u-blox-python-package
@@ -8,7 +8,7 @@ link for hookup guide and python package setup: https://learn.sparkfun.com/tutor
 1. disable the nvgetty service: (first check if its active)	
 	sudo systemctl status serial-getty@ttyTHS1.service
 	sudo systemctl stop nvgetty
-	sudo systemctl disable nvgetty
+	sudo systemctl disable nvgetty 
 	sudo systemctl stop serial-getty@ttyTHS1.service
 	sudo systemctl disable serial-getty@ttyTHS1.service
 2. add user to dialout group:
@@ -17,7 +17,7 @@ link for hookup guide and python package setup: https://learn.sparkfun.com/tutor
 
 4. test in python: running this will either work or throw a permission denied error:
 	import serial
-	ser = serial.Serial('/dev/ttyTHS1', 115200)
+	ser = serial.Serial('/dev/ttyTHS1', 38400)
 5. you may also have to stop this service too: 
 	sudo systemctl stop serial-getty@ttyTHS1.service
 	sudo systemctl disable serial-getty@ttyTHS1.service
