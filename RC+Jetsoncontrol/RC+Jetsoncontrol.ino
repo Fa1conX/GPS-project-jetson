@@ -19,11 +19,14 @@ float speedScalar = 0.8;
 unsigned long signalTimeout = 100;     // stop if no RC signal within 100 ms
 unsigned long jetsonTimeout = 500;     // stop if no Jetson command within 500 ms
 unsigned long neutralHoldTime = 2000;  // must hold neutral this long to switch back to Jetson
+unsigned long debugInterval = 100;     // how often to send debug info (ms)
+
 
 // --- Tracking ---
 unsigned long lastRCsignal = 0;
 unsigned long lastJetsonCmd = 0;
 unsigned long rcNeutralStart = 0;
+unsigned long lastDebugTime = 0;
 bool rcActive = true; // RC control mode initially
 
 // --- Jetson command values ---
@@ -115,6 +118,26 @@ void loop() {
   digitalWrite(dirPin, direction);
   analogWrite(pwmPin, speedValue);
   steeringServo.write(steeringAngle);
+
+    // --- Step 6: Send debug info periodically ---
+  unsigned long now = millis();
+  if (now - lastDebugTime >= debugInterval) {
+    lastDebugTime = now;
+    Serial.print("<MODE:");
+    Serial.print(rcActive ? "RC" : "JETSON");
+    Serial.print(";SPD:");
+    Serial.print(speedValue);
+    Serial.print(";DIR:");
+    Serial.print(direction ? "REV" : "FWD");
+    Serial.print(";STR:");
+    Serial.print(steeringAngle);
+    Serial.print(";RCOK:");
+    Serial.print(rcSignalOK ? "1" : "0");
+    Serial.print(";JETOK:");
+    Serial.print((millis() - lastJetsonCmd < jetsonTimeout) ? "1" : "0");
+    Serial.println(">");
+  }
+
 
   delay(10);
 }
