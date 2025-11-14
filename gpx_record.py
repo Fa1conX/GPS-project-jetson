@@ -8,6 +8,9 @@
 # Logs latitude, longitude, elevation, and heading.
 #-----------------------------------------------------------------------------
 
+print("temporarily depricated, use Record_data.py instead")
+
+"""
 import os
 import serial
 import time
@@ -92,3 +95,4 @@ def run_gpx(record_frequency=record_frequency):
 
 if __name__ == '__main__':
     run_gpx()
+"""

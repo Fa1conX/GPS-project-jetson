@@ -5,6 +5,9 @@ import csv
 from datetime import datetime
 from ublox_gps import UbloxGps
 
+print("temporarily depricated, use Record_data.py instead")
+"""
+
 # Configure your serial port for the ZED-F9R
 port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=1)
 gps = UbloxGps(port)
@@ -64,3 +67,4 @@ def run_csv(record_frequency=record_frequency):
 
 if __name__ == '__main__':
     run_csv()
+"""
