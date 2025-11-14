@@ -21,13 +21,15 @@ def get_basic_gps_data():
     """Fetch basic GPS data (latitude, longitude) from the Ublox GPS module."""
     try:
         geo = gps.geo_coords()
-        if geo is not None and geo.lat is not None and geo.lon is not None:
+        if geo is not None and geo.lat is not None and geo.lat != 0.0 and geo.lon is not None and geo.lon != 0.0:
             lat = geo.lat
             lon = geo.lon
             ele = getattr(geo, 'height', 0.0) / 1000.0  # height above ellipsoid (convert mm to meters)
             heading = getattr(geo, 'headMot', 0.0)  # heading of motion (degrees)
+                        
             return lat, lon, ele, heading
         else:
+            print("Waiting for valid fix...")
             return None
     except (ValueError, IOError) as err:
         print("GPS read error:", err)
