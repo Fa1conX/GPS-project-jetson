@@ -109,7 +109,7 @@ def main():
 
     print("Select mode:")
     print("1. Input GPS coordinates manually")
-    print("2. Read coordinates from GPX file (not implemented yet)")
+    print("2. Read coordinates from GPX file")
     mode = input("Enter mode (1 or 2): ")
 
     if mode == '1':
@@ -117,7 +117,12 @@ def main():
         navigate_to_waypoint(serial_conn, latitude, longitude)
 
     elif mode == '2':
-        print("Mode 2, navigating a path from gpx file is not implemented yet")
+        coordinates = read_gpx_file()
+        print("Navigating through the following waypoints:")
+        for i, (lat, lon) in enumerate(coordinates):
+            print(f"Waypoint {i + 1}: Latitude {lat}, Longitude {lon}")
+            navigate_to_waypoint(serial_conn, lat, lon)
+        print("Finished navigating all waypoints.")
 
     else:
         print("Invalid mode selected")
