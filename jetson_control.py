@@ -93,11 +93,9 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
 
         time.sleep(0.1)  # 10 Hz polling rate
 
-def main():
-    # Default tuning parameters
-    default_speed = 100  # Throttle value (-255 to 255)
-    default_steering = 90  # Steering angle (0 to 180)
 
+
+def main():
     # Serial communication setup
     serial_port = '/dev/ttyUSB0'  # Adjust based on your setup
     baud_rate = 115200
@@ -111,30 +109,18 @@ def main():
 
     print("Select mode:")
     print("1. Input GPS coordinates manually")
-    print("2. Read coordinates from GPX file")
-    print("3. Navigate to waypoint")
-    mode = input("Enter mode (1 or 2 or 3): ")
+    print("2. Read coordinates from GPX file (not implemented yet)")
+    mode = input("Enter mode (1 or 2): ")
 
     if mode == '1':
         latitude, longitude = get_gps_coordinates()
-        print(f"Navigating to: Latitude {latitude}, Longitude {longitude}")
-        send_command(serial_conn, default_speed, default_steering)
+        navigate_to_waypoint(serial_conn, latitude, longitude)
 
     elif mode == '2':
-        coordinates = read_gpx_file()
-        print("Navigating through the following coordinates:")
-        for lat, lon in coordinates:
-            print(f"Latitude: {lat}, Longitude: {lon}")
-            send_command(serial_conn, default_speed, default_steering)
-            time.sleep(2)  # Simulate navigation delay
-
-    elif mode == '3':
-        waypoint_lat = float(input("Enter the latitude of the waypoint: "))
-        waypoint_lon = float(input("Enter the longitude of the waypoint: "))
-        navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon)
+        print("Mode 2, navigating a path from gpx file is not implemented yet")
 
     else:
-        print("Invalid mode selected.")
+        print("Invalid mode selected")
 
     serial_conn.close()
 
