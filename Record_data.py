@@ -35,6 +35,8 @@ def get_basic_gps_data():
         print("GPS read error:", err)
         return None
 
+
+
 def record_to_csv(record_frequency, csv_filename):
     """Record GPS data to a CSV file."""
     print(f"Recording GPS data to {csv_filename}")
