@@ -12,7 +12,7 @@ const int servoPin = 6;        // Steering servo signal output
 const int minPulse = 1000;
 const int neutral = 1500;
 const int maxPulse = 2000;
-const int deadband = 25;
+const int deadband = 30;
 
 // --- Settings ---
 float speedScalar = 0.8;
