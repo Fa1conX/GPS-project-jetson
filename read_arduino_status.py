@@ -8,7 +8,12 @@ else:
     save_to_file = False  # default to False if not run as main
 
 def read_arduino_status(save_to_file=save_to_file):
-    ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
+    try:
+        ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
+    except serial.SerialException as e:
+        print(f"Error: Could not open serial port '/dev/ttyUSB0'. Ensure the device is connected and the port is correct.")
+        print(f"Details: {e}")
+        return
 
     if save_to_file:
         # Ensure the results directory exists
