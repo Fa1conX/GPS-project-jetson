@@ -3,10 +3,9 @@ import os
 
 # Prompt user for record frequency
 if __name__ == '__main__':
-    save_to_file = (input("Enter true or false to save debug output to file (true/false): ").strip().lower() == 'true')
+    save_to_file = input("Save debug output to file? (Y/N): ").strip().lower() == 'y'
 else:
     save_to_file = False  # default to False if not run as main
-
 def read_arduino_status(save_to_file=save_to_file):
     try:
         ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
