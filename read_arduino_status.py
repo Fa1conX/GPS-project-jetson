@@ -1,13 +1,6 @@
 import serial
 import os
 
-# Prompt user for record frequency
-if __name__ == '__main__':
-    save_to_file = input("Save debug output to file? (Y/N): ").strip().lower() == 'y'
-    read_arduino_status(save_to_file=save_to_file)
-else:
-    save_to_file = False  # default to False if not run as main
-    read_arduino_status(save_to_file=save_to_file)
 
 def read_arduino_status(save_to_file=save_to_file):
     try:
@@ -37,8 +30,16 @@ def read_arduino_status(save_to_file=save_to_file):
         while True:
             line = ser.readline()
             if line:
-                print("Arduino:", line)
+                print("Arduino:", line.strip())
 
+
+# Prompt user for record frequency
+if __name__ == '__main__':
+    save_to_file = input("Save debug output to file? (Y/N): ").strip().lower() == 'y'
+    read_arduino_status(save_to_file=save_to_file)
+else:
+    save_to_file = False  # default to False if not run as main
+    read_arduino_status(save_to_file=save_to_file)
 
 # Expected Arduino debug output format:
 # MODE	"RC" = manual RC override active, "JETSON" = autonomous control
