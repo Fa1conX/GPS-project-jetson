@@ -123,7 +123,9 @@ void loop() {
   unsigned long now = millis();
   if (now - lastDebugTime >= debugInterval) {
     lastDebugTime = now;
-    Serial.print("<MODE:");
+
+    Serial.print(now);
+    Serial.print(" <MODE:");
     Serial.print(rcActive ? "RC" : "JETSON");
     Serial.print(";SPD:");
     Serial.print(speedValue);
@@ -137,7 +139,6 @@ void loop() {
     Serial.print((millis() - lastJetsonCmd < jetsonTimeout) ? "1" : "0");
     Serial.println(">");
   }
-
 
   delay(10);
 }
