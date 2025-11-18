@@ -37,7 +37,32 @@ int jetsonSteering = 90; // 0–180 (centered)
 #include <Servo.h>
 Servo steeringServo;
 
+// --- Add deadband logic for motor and servo ---
+#define MOTOR_DEADBAND 5  // Minimum speed to avoid buzzing
+#define SERVO_DEADBAND 2  // Minimum angle change to avoid buzzing
+
+// --- Modify speedValue and steeringAngle application ---
+if (speedValue < MOTOR_DEADBAND) {
+  speedValue = 0;  // Avoid small oscillations causing buzzing
+}
+
+if (abs(steeringAngle - steeringServo.read()) > SERVO_DEADBAND) {
+  steeringServo.write(steeringAngle);  // Only update if change is significant
+} else {
+  steeringAngle = steeringServo.read();  // Maintain current angle
+}
+
+// --- Ensure PWM frequency is optimized ---
+// Use Timer1 to set PWM frequency for motor control
+#include <PWM.h>
+const int pwmFrequency = 490;  // Set PWM frequency to 490 Hz (standard for motor control)
 void setup() {
+  InitTimersSafe();
+  bool success = SetPinFrequencySafe(pwmPin, pwmFrequency);
+  if (!success) {
+    Serial.println("Failed to set PWM frequency.");
+  }
+
   pinMode(rcThrottlePin, INPUT);
   pinMode(rcSteeringPin, INPUT);
   pinMode(dirPin, OUTPUT);
