@@ -2,7 +2,8 @@ import serial
 import os
 
 
-def read_arduino_status(save_to_file=save_to_file):
+
+def read_arduino_status(save_to_file):
     try:
         ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
     except serial.SerialException as e:
@@ -36,10 +37,10 @@ def read_arduino_status(save_to_file=save_to_file):
 # Prompt user for record frequency
 if __name__ == '__main__':
     save_to_file = input("Save debug output to file? (Y/N): ").strip().lower() == 'y'
-    read_arduino_status(save_to_file=save_to_file)
+    read_arduino_status(save_to_file)
 else:
     save_to_file = False  # default to False if not run as main
-    read_arduino_status(save_to_file=save_to_file)
+    read_arduino_status(save_to_file)
 
 # Expected Arduino debug output format:
 # MODE	"RC" = manual RC override active, "JETSON" = autonomous control
