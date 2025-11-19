@@ -14,6 +14,11 @@ const int neutral = 1500;
 const int maxPulse = 2000;
 const int deadband = 30;
 
+// --- Deadband thresholds ---
+#define MOTOR_DEADBAND 5  // Minimum speed to avoid buzzing
+#define SERVO_DEADBAND 4  // Minimum angle change to avoid buzzing (increase for less buzzing)
+#define SERVO_UPDATE_INTERVAL 30 // Minimum ms between servo updates
+
 // --- Settings ---
 float speedScalar = 0.8;
 unsigned long signalTimeout = 100;     // stop if no RC signal within 100 ms
@@ -37,38 +42,14 @@ int jetsonSteering = 90; // 0–180 (centered)
 #include <Servo.h>
 Servo steeringServo;
 
-// --- Add deadband logic for motor and servo ---
-#define MOTOR_DEADBAND 5  // Minimum speed to avoid buzzing
-#define SERVO_DEADBAND 2  // Minimum angle change to avoid buzzing
-
-// --- Modify speedValue and steeringAngle application ---
-if (speedValue < MOTOR_DEADBAND) {
-  speedValue = 0;  // Avoid small oscillations causing buzzing
-}
-
-if (abs(steeringAngle - steeringServo.read()) > SERVO_DEADBAND) {
-  steeringServo.write(steeringAngle);  // Only update if change is significant
-} else {
-  steeringAngle = steeringServo.read();  // Maintain current angle
-}
-
-// --- Ensure PWM frequency is optimized ---
-// Use Timer1 to set PWM frequency for motor control
-#include <PWM.h>
-const int pwmFrequency = 490;  // Set PWM frequency to 490 Hz (standard for motor control)
 void setup() {
-  InitTimersSafe();
-  bool success = SetPinFrequencySafe(pwmPin, pwmFrequency);
-  if (!success) {
-    Serial.println("Failed to set PWM frequency.");
-  }
-
   pinMode(rcThrottlePin, INPUT);
   pinMode(rcSteeringPin, INPUT);
   pinMode(dirPin, OUTPUT);
   pinMode(pwmPin, OUTPUT);
   steeringServo.attach(servoPin);
   Serial.begin(115200); // faster serial rate for Jetson
+  // No custom PWM frequency for Arduino Nano; use default analogWrite
 }
 
 void loop() {
@@ -139,10 +120,25 @@ void loop() {
     speedValue = 0;
   }
 
+  // --- Deadband logic for motor ---
+  if (speedValue < MOTOR_DEADBAND) {
+    speedValue = 0;  // Avoid small oscillations causing buzzing
+  }
+
+  // --- Improved deadband logic and update rate for servo ---
+  static int lastServoAngle = 90;
+  static unsigned long lastServoUpdate = 0;
+  unsigned long nowMs = millis();
+  if (abs(steeringAngle - lastServoAngle) > SERVO_DEADBAND && (nowMs - lastServoUpdate > SERVO_UPDATE_INTERVAL)) {
+    steeringServo.write(steeringAngle);  // Only update if change is significant and enough time has passed
+    lastServoAngle = steeringAngle;
+    lastServoUpdate = nowMs;
+  }
+
   // --- Step 5: Apply outputs ---
   digitalWrite(dirPin, direction);
   analogWrite(pwmPin, speedValue);
-  steeringServo.write(steeringAngle);
+  // steeringServo.write(steeringAngle); // Already handled above
 
     // --- Step 6: Send debug info periodically ---
   unsigned long now = millis();
