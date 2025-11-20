@@ -5,7 +5,7 @@ from pathlib import Path
 import math
 from Record_data import get_basic_gps_data
 
-def get_gps_coordinates():
+def input_gps_coordinates():
     """Prompt the user to input GPS coordinates."""
     try:
         latitude = float(input("Enter latitude: "))
@@ -13,7 +13,7 @@ def get_gps_coordinates():
         return latitude, longitude
     except ValueError:
         print("Invalid input. Please enter numeric values.")
-        return get_gps_coordinates()
+        return input_gps_coordinates()
 
 def read_gpx_file():
     """Prompt the user to specify a GPX file and read coordinates."""
@@ -113,7 +113,7 @@ def main():
     mode = input("Enter mode (1 or 2): ")
 
     if mode == '1':
-        latitude, longitude = get_gps_coordinates()
+        latitude, longitude = input_gps_coordinates()
         navigate_to_waypoint(serial_conn, latitude, longitude)
 
     elif mode == '2':
