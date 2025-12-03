@@ -34,7 +34,7 @@ def read_gpx_file():
 
 def send_command(serial_conn, throttle, steering):
     """Send throttle and steering commands to the Arduino."""
-    command = f"<THR:{throttle};STR:{steering}>"
+    command = f"<THR:{int(throttle)};STR:{int(steering)}>\n"
     serial_conn.write(command.encode('utf-8'))
 
 def calculate_bearing(lat1, lon1, lat2, lon2):

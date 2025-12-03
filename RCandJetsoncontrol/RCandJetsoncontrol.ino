@@ -61,14 +61,23 @@ void loop() {
   // --- Step 2: Parse Jetson serial input if available ---
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('>');
+    
+    // Remove leading '<' if present
+    cmd.trim();
+    if (cmd.startsWith("<")) {
+      cmd = cmd.substring(1);
+    }
+
     int tIndex = cmd.indexOf("THR:");
     int sIndex = cmd.indexOf("STR:");
+
     if (tIndex >= 0 && sIndex >= 0) {
       jetsonThrottle = constrain(cmd.substring(tIndex + 4, cmd.indexOf(';', tIndex)).toInt(), -255, 255);
       jetsonSteering = constrain(cmd.substring(sIndex + 4).toInt(), 0, 180);
       lastJetsonCmd = millis();
     }
-  }
+}
+
 
   // --- Step 3: Decide control mode ---
   if (rcSignalOK) {
