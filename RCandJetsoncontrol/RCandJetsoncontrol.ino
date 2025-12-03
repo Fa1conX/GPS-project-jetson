@@ -38,6 +38,13 @@ bool rcActive = true; // RC control mode initially
 int jetsonThrottle = 0;  // 0–255
 int jetsonSteering = 90; // 0–180 (centered)
 
+// --- Nonblocking serial parser buffer ---
+const int CMD_BUF_SIZE = 40;
+char cmdBuffer[CMD_BUF_SIZE];
+uint8_t cmdIndex = 0;
+bool inPacket = false;
+
+
 // --- Includes ---
 #include <Servo.h>
 Servo steeringServo;
