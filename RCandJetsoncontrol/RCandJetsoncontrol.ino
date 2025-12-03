@@ -24,7 +24,7 @@ float speedScalar = 0.8;
 unsigned long signalTimeout = 100;     // stop if no RC signal within 100 ms
 unsigned long jetsonTimeout = 500;     // stop if no Jetson command within 500 ms
 unsigned long neutralHoldTime = 2000;  // must hold neutral this long to switch back to Jetson
-unsigned long debugInterval = 100;     // how often to send debug info (ms)
+unsigned long debugInterval = 500;     // how often to send debug info (ms)
 
 
 // --- Tracking ---
@@ -38,11 +38,10 @@ bool rcActive = true; // RC control mode initially
 int jetsonThrottle = 0;  // 0–255
 int jetsonSteering = 90; // 0–180 (centered)
 
-// --- Nonblocking serial parser buffer ---
-const int CMD_BUF_SIZE = 40;
-char cmdBuffer[CMD_BUF_SIZE];
-uint8_t cmdIndex = 0;
-bool inPacket = false;
+// --- Binary protocol state machine ---
+uint8_t pkt[6];
+uint8_t pktIndex = 0;
+bool receivingPacket = false;
 
 
 // --- Includes ---
@@ -65,38 +64,43 @@ void loop() {
   int strPulse = pulseIn(rcSteeringPin, HIGH, 25000);
   bool rcSignalOK = (thrPulse > 0 && strPulse > 0);
 
-  // --- Step 2: Parse Jetson serial input if available ---
-  // --- Step 2: Nonblocking serial packet parser ---
+  // --- Step 2: Nonblocking binary packet parser ---
   while (Serial.available()) {
-      char c = Serial.read();
+      uint8_t b = Serial.read();
 
-      if (c == '<') {
-          inPacket = true;
-          cmdIndex = 0;
-      }
-      else if (c == '>' && inPacket) {
-          cmdBuffer[cmdIndex] = '\0';  // Null-terminate
-          inPacket = false;
-
-          // --- Parse THR and STR ---
-          char *thrPtr = strstr(cmdBuffer, "THR:");
-          char *strPtr = strstr(cmdBuffer, "STR:");
-
-          if (thrPtr && strPtr) {
-              int t = atoi(thrPtr + 4);
-              int s = atoi(strPtr + 4);
-
-              jetsonThrottle = constrain(t, -255, 255);
-              jetsonSteering = constrain(s, 0, 180);
-              lastJetsonCmd = millis();
+      if (!receivingPacket) {
+          if (b == 0xAA) {       // Start byte
+              receivingPacket = true;
+              pktIndex = 0;
           }
+          continue;
       }
-      else if (inPacket) {
-          if (cmdIndex < CMD_BUF_SIZE - 1) {
-              cmdBuffer[cmdIndex++] = c;
+
+      pkt[pktIndex++] = b;
+
+      if (pktIndex >= 5) {
+          // Expecting: [thr][steer][reserved][checksum][0x55]
+          receivingPacket = false;  // done reading packet
+
+          if (pkt[4] == 0x55) {     // Valid end byte?
+              // Extract packet fields
+              int throttle = (int8_t)pkt[0];   // signed
+              int steering = pkt[1];           // unsigned
+              int reserved = pkt[2];
+              int checksum = pkt[3];
+
+              int calc = ( (uint8_t)pkt[0] + pkt[1] + pkt[2] ) & 0xFF;
+
+              if (calc == checksum) {
+                  // Valid packet!
+                  jetsonThrottle = constrain(throttle, -255, 255);
+                  jetsonSteering = constrain(steering, 0, 180);
+                  lastJetsonCmd = millis();
+              }
           }
       }
   }
+
 
 
 
