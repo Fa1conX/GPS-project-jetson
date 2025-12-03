@@ -66,24 +66,38 @@ void loop() {
   bool rcSignalOK = (thrPulse > 0 && strPulse > 0);
 
   // --- Step 2: Parse Jetson serial input if available ---
-  if (Serial.available()) {
-    String cmd = Serial.readStringUntil('>');
-    
-    // Remove leading '<' if present
-    cmd.trim();
-    if (cmd.startsWith("<")) {
-      cmd = cmd.substring(1);
-    }
+  // --- Step 2: Nonblocking serial packet parser ---
+  while (Serial.available()) {
+      char c = Serial.read();
 
-    int tIndex = cmd.indexOf("THR:");
-    int sIndex = cmd.indexOf("STR:");
+      if (c == '<') {
+          inPacket = true;
+          cmdIndex = 0;
+      }
+      else if (c == '>' && inPacket) {
+          cmdBuffer[cmdIndex] = '\0';  // Null-terminate
+          inPacket = false;
 
-    if (tIndex >= 0 && sIndex >= 0) {
-      jetsonThrottle = constrain(cmd.substring(tIndex + 4, cmd.indexOf(';', tIndex)).toInt(), -255, 255);
-      jetsonSteering = constrain(cmd.substring(sIndex + 4).toInt(), 0, 180);
-      lastJetsonCmd = millis();
-    }
-}
+          // --- Parse THR and STR ---
+          char *thrPtr = strstr(cmdBuffer, "THR:");
+          char *strPtr = strstr(cmdBuffer, "STR:");
+
+          if (thrPtr && strPtr) {
+              int t = atoi(thrPtr + 4);
+              int s = atoi(strPtr + 4);
+
+              jetsonThrottle = constrain(t, -255, 255);
+              jetsonSteering = constrain(s, 0, 180);
+              lastJetsonCmd = millis();
+          }
+      }
+      else if (inPacket) {
+          if (cmdIndex < CMD_BUF_SIZE - 1) {
+              cmdBuffer[cmdIndex++] = c;
+          }
+      }
+  }
+
 
 
   // --- Step 3: Decide control mode ---
