@@ -24,7 +24,7 @@ float speedScalar = 0.8;
 unsigned long signalTimeout = 100;     // stop if no RC signal within 100 ms
 unsigned long jetsonTimeout = 500;     // stop if no Jetson command within 500 ms
 unsigned long neutralHoldTime = 2000;  // must hold neutral this long to switch back to Jetson
-unsigned long debugInterval = 100;     // how often to send debug info (ms)
+unsigned long debugInterval = 500;     // how often to send debug info (ms)
 
 
 // --- Tracking ---
@@ -37,6 +37,12 @@ bool rcActive = true; // RC control mode initially
 // --- Jetson command values ---
 int jetsonThrottle = 0;  // 0–255
 int jetsonSteering = 90; // 0–180 (centered)
+
+// --- Binary protocol state machine ---
+uint8_t pkt[6];
+uint8_t pktIndex = 0;
+bool receivingPacket = false;
+
 
 // --- Includes ---
 #include <Servo.h>
@@ -58,17 +64,45 @@ void loop() {
   int strPulse = pulseIn(rcSteeringPin, HIGH, 25000);
   bool rcSignalOK = (thrPulse > 0 && strPulse > 0);
 
-  // --- Step 2: Parse Jetson serial input if available ---
-  if (Serial.available()) {
-    String cmd = Serial.readStringUntil('>');
-    int tIndex = cmd.indexOf("THR:");
-    int sIndex = cmd.indexOf("STR:");
-    if (tIndex >= 0 && sIndex >= 0) {
-      jetsonThrottle = constrain(cmd.substring(tIndex + 4, cmd.indexOf(';', tIndex)).toInt(), -255, 255);
-      jetsonSteering = constrain(cmd.substring(sIndex + 4).toInt(), 0, 180);
-      lastJetsonCmd = millis();
-    }
+  // --- Step 2: Nonblocking binary packet parser ---
+  while (Serial.available()) {
+      uint8_t b = Serial.read();
+
+      if (!receivingPacket) {
+          if (b == 0xAA) {       // Start byte
+              receivingPacket = true;
+              pktIndex = 0;
+          }
+          continue;
+      }
+
+      pkt[pktIndex++] = b;
+
+      if (pktIndex >= 5) {
+          // Expecting: [thr][steer][reserved][checksum][0x55]
+          receivingPacket = false;  // done reading packet
+
+          if (pkt[4] == 0x55) {     // Valid end byte?
+              // Extract packet fields
+              int throttle = (int8_t)pkt[0];   // signed
+              int steering = pkt[1];           // unsigned
+              int reserved = pkt[2];
+              int checksum = pkt[3];
+
+              int calc = ( (uint8_t)pkt[0] + pkt[1] + pkt[2] ) & 0xFF;
+
+              if (calc == checksum) {
+                  // Valid packet!
+                  jetsonThrottle = constrain(throttle, -255, 255);
+                  jetsonSteering = constrain(steering, 0, 180);
+                  lastJetsonCmd = millis();
+              }
+          }
+      }
   }
+
+
+
 
   // --- Step 3: Decide control mode ---
   if (rcSignalOK) {

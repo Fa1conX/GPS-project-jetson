@@ -32,10 +32,43 @@ def read_gpx_file():
                 coordinates.append((lat, lon))
     return coordinates
 
+#old send_command function
+#def send_command(serial_conn, throttle, steering):
+#    """Send throttle and steering commands to the Arduino."""
+#    command = f"<THR:{int(throttle)};STR:{int(steering)}>\n"
+#    serial_conn.write(command.encode('utf-8'))
+
 def send_command(serial_conn, throttle, steering):
-    """Send throttle and steering commands to the Arduino."""
-    command = f"<THR:{throttle};STR:{steering}>"
-    serial_conn.write(command.encode('utf-8'))
+    """
+    Send binary throttle/steering packet to Arduino.
+    throttle: -255 to 255 (int)
+    steering: 0 to 180 (int)
+    """
+    t = int(throttle)
+    s = int(steering)
+
+    # Clamp values
+    t = max(-255, min(255, t))
+    s = max(0, min(180, s))
+
+    # Convert throttle to signed int8 format
+    if t < 0:
+        t = 256 + t   # convert negative int8 to unsigned byte
+
+    reserved = 0
+    checksum = (t + s + reserved) & 0xFF
+
+    packet = bytes([
+        0xAA,       # start byte
+        t & 0xFF,   # throttle
+        s & 0xFF,   # steering
+        reserved,   # reserved for future
+        checksum,   # checksum
+        0x55        # end byte
+    ])
+
+    serial_conn.write(packet)
+
 
 def calculate_bearing(lat1, lon1, lat2, lon2):
     """Calculate the bearing between two GPS coordinates."""
