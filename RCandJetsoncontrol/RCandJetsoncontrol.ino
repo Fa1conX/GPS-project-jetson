@@ -105,23 +105,19 @@ void loop() {
 
 
   // --- Step 3: Decide control mode ---
-  if (rcSignalOK) {
-    lastRCsignal = millis();
+  // Throttle deadband = 1490–1550 µs
+  bool rcThrottleNeutral = (thrPulse >= 1490 && thrPulse <= 1550);
 
-    bool rcNeutral = (abs(thrPulse - neutral) <= deadband) && (abs(strPulse - neutral) <= deadband);
+  // Steering deadband = use existing ± deadband
+  bool rcSteeringNeutral = (abs(strPulse - neutral) <= deadband);
 
-    if (!rcNeutral) {
-      // RC is active — override Jetson
-      rcActive = true;
-      rcNeutralStart = 0;
-    } else {
-      // RC neutral — start counting hold time
-      if (rcNeutralStart == 0) rcNeutralStart = millis();
-      if (millis() - rcNeutralStart > neutralHoldTime) {
-        rcActive = false; // RC neutral long enough — return control to Jetson
-      }
-    }
+  // RC override only if *either* axis leaves its deadband
+  if (rcThrottleNeutral && rcSteeringNeutral) {
+      rcActive = false;   // Jetson mode
+  } else {
+      rcActive = true;    // RC override
   }
+
 
   // --- Step 4: Determine output values ---
   int speedValue = 0;
