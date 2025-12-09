@@ -15,7 +15,7 @@ const int maxPulse = 2000;
 const int deadband = 30;
 
 // --- Deadband thresholds ---
-#define MOTOR_DEADBAND 3  // Minimum speed to avoid buzzing
+#define MOTOR_DEADBAND 5  // Minimum speed to avoid buzzing
 #define SERVO_DEADBAND 4  // Minimum angle change to avoid buzzing (increase for less buzzing)
 #define SERVO_UPDATE_INTERVAL 25 // Minimum ms between servo updates
 
