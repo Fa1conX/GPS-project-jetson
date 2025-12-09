@@ -1,5 +1,6 @@
 import serial
 import time
+import math
 import os
 from pathlib import Path
 import math
@@ -80,14 +81,20 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     return math.degrees(bearing) % 360
 
 def calculate_distance(lat1, lon1, lat2, lon2):
-    """Calculate the distance between two GPS coordinates using the haversine formula."""
-    R = 6371e3  # Earth radius in meters
-    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
+    """Approximate distance between two GPS coords using simple trig (flat-earth approximation)."""
+    # Convert degrees → radians
+    lat1_r = math.radians(lat1)
+    
+    # Scale factors (approx):
+    meters_per_deg_lat = 111_320                 # constant
+    meters_per_deg_lon = 111_320 * math.cos(lat1_r)  # shrinks with latitude
+
+    # Differences
+    dlat = (lat2 - lat1) * meters_per_deg_lat
+    dlon = (lon2 - lon1) * meters_per_deg_lon
+
+    # Pythagorean distance
+    return math.sqrt(dlat*dlat + dlon*dlon)
 
 def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_threshold=5.0):
     """Navigate to a given waypoint using GPS data."""
