@@ -1,5 +1,12 @@
 // RC + Jetson Serial Motor/Steering Controller
 // RC overrides Jetson until RC stays neutral for 2s
+// BNO055 IMU stuff
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BNO055.h>
+
+Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
+
 
 // --- Pin definitions ---
 const int rcThrottlePin = 2;   // RC throttle input
@@ -56,6 +63,12 @@ void setup() {
   steeringServo.attach(servoPin);
   Serial.begin(115200); // faster serial rate for Jetson
   // No custom PWM frequency for Arduino Nano; use default analogWrite
+  if (!bno.begin()) {
+  Serial.println("BNO055 not detected");
+  while (1); // halt
+  }
+  bno.setExtCrystalUse(true); // optional for more accurate readings
+
 }
 
 void loop() {
@@ -186,7 +199,19 @@ void loop() {
   analogWrite(pwmPin, speedValue);
   // steeringServo.write(steeringAngle); // Already handled above
 
-    // --- Step 6: Send debug info periodically ---
+  // Inside loop(), anywhere after other logic but before delay(10):
+  sensors_event_t event;
+  bno.getEvent(&event);
+  float heading = event.orientation.x; // magnetic heading in degrees
+
+  // Send heading packet
+  Serial.print("<HEAD:");
+  Serial.print(heading, 2); // 2 decimal places
+  Serial.println(">");
+
+
+
+  // --- Step 6: Send debug info periodically ---
   unsigned long now = millis();
   if (now - lastDebugTime >= debugInterval) {
     lastDebugTime = now;
@@ -208,6 +233,8 @@ void loop() {
     Serial.print(thrPulse);
     Serial.println(">");
   }
+
+
 
   delay(10);
 }

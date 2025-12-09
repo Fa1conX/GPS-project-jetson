@@ -4,6 +4,7 @@ import math
 import os
 from pathlib import Path
 import math
+from ublox_gps import UbloxGps
 from Record_data import get_basic_gps_data
 
 def input_gps_coordinates():
@@ -73,6 +74,7 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
     bearing = math.atan2(x, y)
     return math.degrees(bearing) % 360
+
 #--- new stuff 
 def get_gps_data_for_steering():
     """
@@ -128,6 +130,21 @@ def map_angle_to_steering(relative_angle, max_steering=45):
     else:
         return relative_angle
 
+def read_heading(ser: serial.Serial) -> float:
+    """
+    Reads lines from the serial port until it finds a <HEAD:...> packet.
+    Returns the heading as a float. Ignores all other debug lines.
+    """
+    while True:
+        line = ser.readline().decode('utf-8', errors='ignore').strip()
+        if line.startswith("<HEAD:") and line.endswith(">"):
+            # Extract the number
+            heading_str = line[len("<HEAD:"):-1]  # remove <HEAD: and >
+            try:
+                return float(heading_str)
+            except ValueError:
+                continue  # malformed number, skip
+
 
 # end new stuff
 
@@ -160,8 +177,9 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
         # Poll GPS data at 10 Hz
         gps_data = get_basic_gps_data()
         if gps_data:
-            current_lat, current_lon, _, current_heading = get_gps_data_for_steering()
-
+            current_lat, current_lon, _, _, = get_gps_data_for_steering()
+            current_heading = read_heading(serial_conn)
+            
             # Calculate distance and bearing to waypoint
             distance_to_waypoint = calculate_distance(current_lat, current_lon, waypoint_lat, waypoint_lon)
             bearing_to_waypoint = calculate_bearing(current_lat, current_lon, waypoint_lat, waypoint_lon)
@@ -169,8 +187,12 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
             print(f"Distance to waypoint: {distance_to_waypoint:.2f} m, Bearing: {bearing_to_waypoint:.2f}°")
 
             # Send commands to Arduino
-            throttle = 40  # Example throttle value
-            _, _, _, current_heading = get_gps_data_for_steering()
+            if distance_to_waypoint < 30.0:
+                throttle = 40  # Slow down when close
+            elif distance_to_waypoint < 10.0:
+                throttle = 20  # Further slow down when very close
+            else:
+                throttle = 50  # Normal speed
             relative_angle = calculate_relative_angle(current_heading, bearing_to_waypoint)
             steering = int(map_angle_to_steering(relative_angle, max_steering=45))
 
@@ -179,7 +201,7 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
 
             # Recalculate route every second if off-path
             current_time = time.time()
-            if current_time - last_recalculation_time >= 1.0:
+            if current_time - last_recalculation_time >= 2.0:
                 last_recalculation_time = current_time
                 if distance_to_waypoint > off_path_threshold:
                     print("Recalculating route...")
