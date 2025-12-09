@@ -4,8 +4,17 @@ import math
 import os
 from pathlib import Path
 import math
+<<<<<<< HEAD
 from ublox_gps import UbloxGps
 from Record_data import get_basic_gps_data
+=======
+#from Record_data import get_basic_gps_data
+from ublox_gps import UbloxGps
+
+port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=1)
+gps = UbloxGps(port)
+
+>>>>>>> 52eb73bf467193e9a2a5a1e771faa4752839f6ac
 
 def input_gps_coordinates():
     """Prompt the user to input GPS coordinates."""
@@ -65,6 +74,23 @@ def send_command(serial_conn, throttle, steering):
 
     serial_conn.write(packet)
 
+def get_basic_gps_data():
+    """Fetch basic GPS data (latitude, longitude) from the Ublox GPS module."""
+    try:
+        geo = gps.geo_coords()
+        if geo is not None and geo.lat is not None and geo.lat != 0.0 and geo.lon is not None and geo.lon != 0.0:
+            lat = geo.lat
+            lon = geo.lon
+            ele = getattr(geo, 'height', 0.0) / 1000.0  # height above ellipsoid (convert mm to meters)
+            heading = getattr(geo, 'headMot', 0.0)  # heading of motion (degrees)
+                        
+            return lat, lon, ele, heading
+        else:
+            print("Waiting for valid fix...")
+            return None
+    except (ValueError, IOError) as err:
+        print("GPS read error:", err)
+        return None
 
 def calculate_bearing(lat1, lon1, lat2, lon2):
     """Calculate the bearing between two GPS coordinates."""
@@ -95,7 +121,7 @@ def get_gps_data_for_steering():
 
             return lat, lon, ele, heading
         else:
-            print("Waiting for valid GPS fix...")
+            print("controlscriptWaiting for valid GPS fix...")
             return None
     except (ValueError, IOError) as err:
         print("GPS read error:", err)
