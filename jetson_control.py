@@ -33,12 +33,6 @@ def read_gpx_file():
                 coordinates.append((lat, lon))
     return coordinates
 
-#old send_command function
-#def send_command(serial_conn, throttle, steering):
-#    """Send throttle and steering commands to the Arduino."""
-#    command = f"<THR:{int(throttle)};STR:{int(steering)}>\n"
-#    serial_conn.write(command.encode('utf-8'))
-
 def send_command(serial_conn, throttle, steering):
     """
     Send binary throttle/steering packet to Arduino.
@@ -79,6 +73,63 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
     bearing = math.atan2(x, y)
     return math.degrees(bearing) % 360
+#--- new stuff 
+def get_gps_data_for_steering():
+    """
+    Fetch GPS data from Ublox ZED-F9R for steering purposes.
+    Returns:
+        lat (float): Latitude in degrees
+        lon (float): Longitude in degrees
+        ele (float): Elevation in meters
+        heading (float): Heading of motion in degrees (0-360)
+    """
+    try:
+        geo = gps.geo_coords()
+        if geo is not None and geo.lat not in (None, 0.0) and geo.lon not in (None, 0.0):
+            lat = geo.lat
+            lon = geo.lon
+            ele = getattr(geo, 'height', 0.0) / 1000.0  # mm → meters
+            heading = getattr(geo, 'headMot', 0.0)     # degrees, 0-360
+
+            return lat, lon, ele, heading
+        else:
+            print("Waiting for valid GPS fix...")
+            return None
+    except (ValueError, IOError) as err:
+        print("GPS read error:", err)
+        return None
+
+def calculate_relative_angle(current_heading, target_bearing):
+    """
+    Compute the relative angle between the current heading and the target bearing.
+    Returns an angle in degrees (-180 to 180):
+        negative = turn left
+        positive = turn right
+    """
+    angle = target_bearing - current_heading
+    # Normalize to [-180, 180]
+    if angle > 180:
+        angle -= 360
+    elif angle < -180:
+        angle += 360
+    return angle
+
+
+def map_angle_to_steering(relative_angle, max_steering=45):
+    """
+    Convert relative angle (-180 to 180) to a steering value for Arduino.
+    max_steering is the maximum steering angle in degrees your servo can take.
+    """
+    # Clamp relative angle to max_steering
+    if relative_angle > max_steering:
+        return max_steering
+    elif relative_angle < -max_steering:
+        return -max_steering
+    else:
+        return relative_angle
+
+
+# end new stuff
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     """Approximate distance between two GPS coords using simple trig (flat-earth approximation)."""
@@ -99,7 +150,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_threshold=5.0):
     """Navigate to a given waypoint using GPS data.
         distance in meters
-        
+
     """
 
     print(f"Navigating to waypoint: Latitude {waypoint_lat}, Longitude {waypoint_lon}")
@@ -109,7 +160,7 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
         # Poll GPS data at 10 Hz
         gps_data = get_basic_gps_data()
         if gps_data:
-            current_lat, current_lon, _, _ = gps_data
+            current_lat, current_lon, _, current_heading = get_gps_data_for_steering()
 
             # Calculate distance and bearing to waypoint
             distance_to_waypoint = calculate_distance(current_lat, current_lon, waypoint_lat, waypoint_lon)
@@ -119,7 +170,11 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
 
             # Send commands to Arduino
             throttle = 40  # Example throttle value
-            steering = int(bearing_to_waypoint)  # Map bearing to steering angle
+            _, _, _, current_heading = get_gps_data_for_steering()
+            relative_angle = calculate_relative_angle(current_heading, bearing_to_waypoint)
+            steering = int(map_angle_to_steering(relative_angle, max_steering=45))
+
+
             send_command(serial_conn, throttle, steering)
 
             # Recalculate route every second if off-path
