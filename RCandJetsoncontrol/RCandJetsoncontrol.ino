@@ -107,7 +107,7 @@ void loop() {
   // --- Step 3: Decide control mode ---
 
   // Throttle neutral = 1490–1550 µs
-  bool rcThrottleNeutral = (thrPulse >= 1470 && thrPulse <= 1550);
+  bool rcThrottleNeutral = (thrPulse >= 1460 && thrPulse <= 1530);
 
   // Steering neutral = ±deadband around 1500
   bool rcSteeringNeutral = (abs(strPulse - neutral) <= deadband);
