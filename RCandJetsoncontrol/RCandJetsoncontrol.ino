@@ -22,7 +22,7 @@ const int deadband = 30;
 // --- Settings ---
 float speedScalar = 0.8;
 unsigned long signalTimeout = 100;     // stop if no RC signal within 100 ms
-unsigned long jetsonTimeout = 500;     // stop if no Jetson command within 500 ms
+unsigned long jetsonTimeout = 1500;     // stop if no Jetson command within 500 ms
 unsigned long neutralHoldTime = 2000;  // must hold neutral this long to switch back to Jetson
 unsigned long debugInterval = 500;     // how often to send debug info (ms)
 
