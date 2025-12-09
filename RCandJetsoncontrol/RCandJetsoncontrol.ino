@@ -105,10 +105,9 @@ void loop() {
 
 
   // --- Step 3: Decide control mode ---
-  // --- Step 3: Decide control mode (with neutral-hold-time) ---
 
   // Throttle neutral = 1490–1550 µs
-  bool rcThrottleNeutral = (thrPulse >= 1490 && thrPulse <= 1550);
+  bool rcThrottleNeutral = (thrPulse >= 1470 && thrPulse <= 1550);
 
   // Steering neutral = ±deadband around 1500
   bool rcSteeringNeutral = (abs(strPulse - neutral) <= deadband);
@@ -205,6 +204,8 @@ void loop() {
     Serial.print(rcSignalOK ? "1" : "0");
     Serial.print(";JETOK:");
     Serial.print((millis() - lastJetsonCmd < jetsonTimeout) ? "1" : "0");
+    Serial.print(";thrPulse;");
+    Serial.print(thrPulse);
     Serial.println(">");
   }
 
