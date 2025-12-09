@@ -5,6 +5,11 @@ import os
 from pathlib import Path
 import math
 from Record_data import get_basic_gps_data
+from ublox_gps import UbloxGps
+
+port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=1)
+gps = UbloxGps(port)
+
 
 def input_gps_coordinates():
     """Prompt the user to input GPS coordinates."""
