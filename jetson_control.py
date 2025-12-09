@@ -97,7 +97,11 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     return math.sqrt(dlat*dlat + dlon*dlon)
 
 def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_threshold=5.0):
-    """Navigate to a given waypoint using GPS data."""
+    """Navigate to a given waypoint using GPS data.
+        distance in meters
+        
+    """
+
     print(f"Navigating to waypoint: Latitude {waypoint_lat}, Longitude {waypoint_lon}")
 
     last_recalculation_time = time.time()
@@ -114,7 +118,7 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
             print(f"Distance to waypoint: {distance_to_waypoint:.2f} m, Bearing: {bearing_to_waypoint:.2f}°")
 
             # Send commands to Arduino
-            throttle = 100  # Example throttle value
+            throttle = 40  # Example throttle value
             steering = int(bearing_to_waypoint)  # Map bearing to steering angle
             send_command(serial_conn, throttle, steering)
 
