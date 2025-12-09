@@ -15,9 +15,9 @@ const int maxPulse = 2000;
 const int deadband = 30;
 
 // --- Deadband thresholds ---
-#define MOTOR_DEADBAND 5  // Minimum speed to avoid buzzing
+#define MOTOR_DEADBAND 3  // Minimum speed to avoid buzzing
 #define SERVO_DEADBAND 4  // Minimum angle change to avoid buzzing (increase for less buzzing)
-#define SERVO_UPDATE_INTERVAL 30 // Minimum ms between servo updates
+#define SERVO_UPDATE_INTERVAL 25 // Minimum ms between servo updates
 
 // --- Settings ---
 float speedScalar = 0.8;
@@ -105,17 +105,34 @@ void loop() {
 
 
   // --- Step 3: Decide control mode ---
-  // Throttle deadband = 1490–1550 µs
+  // --- Step 3: Decide control mode (with neutral-hold-time) ---
+
+  // Throttle neutral = 1490–1550 µs
   bool rcThrottleNeutral = (thrPulse >= 1490 && thrPulse <= 1550);
 
-  // Steering deadband = use existing ± deadband
+  // Steering neutral = ±deadband around 1500
   bool rcSteeringNeutral = (abs(strPulse - neutral) <= deadband);
 
-  // RC override only if *either* axis leaves its deadband
-  if (rcThrottleNeutral && rcSteeringNeutral) {
-      rcActive = false;   // Jetson mode
-  } else {
-      rcActive = true;    // RC override
+  bool rcIsNeutral = rcThrottleNeutral && rcSteeringNeutral;
+
+  if (rcSignalOK) {
+      lastRCsignal = millis();
+
+      if (!rcIsNeutral) {
+          // RC actively commanding → RC override immediately
+          rcActive = true;
+          rcNeutralStart = 0;   // reset timer
+      } else {
+          // RC is centered → begin counting neutral time
+          if (rcNeutralStart == 0) {
+              rcNeutralStart = millis();
+          }
+
+          // Stay in RC mode until neutralHoldTime passes
+          if (millis() - rcNeutralStart > neutralHoldTime) {
+              rcActive = false;   // Switch back to Jetson
+          }
+      }
   }
 
 
