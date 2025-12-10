@@ -116,7 +116,7 @@ def get_gps_data_for_steering():
 
             return lat, lon, ele, heading
         else:
-            print("controlscriptWaiting for valid GPS fix...")
+            print("Waiting for valid GPS fix...")
             return None
     except (ValueError, IOError) as err:
         print("GPS read error:", err)
@@ -195,8 +195,8 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
 
     last_recalculation_time = time.time()
     while True:
-        # Poll GPS data at 10 Hz
         gps_data = get_basic_gps_data()
+
         if gps_data:
             current_lat, current_lon, _, _, = get_gps_data_for_steering()
             current_heading = read_heading(serial_conn)
@@ -221,12 +221,13 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
             send_command(serial_conn, throttle, steering)
 
             # Recalculate route every second if off-path
+            """
             current_time = time.time()
             if current_time - last_recalculation_time >= 2.0:
                 last_recalculation_time = current_time
                 if distance_to_waypoint > off_path_threshold:
                     print("Recalculating route...")
-
+            """
             # Stop navigation if close to waypoint
             if distance_to_waypoint < 1.0:
                 print("Reached waypoint!")
@@ -255,7 +256,9 @@ def main():
     mode = input("Enter mode (1 or 2): ")
 
     if mode == '1':
-        latitude, longitude = input_gps_coordinates()
+        #latitude, longitude = input_gps_coordinates()
+        latitude, longitude = 32.770729, -117.188756 #for testing, coordinates hardcoded
+        print(f"Navigating to Latitude {latitude}, Longitude {longitude}")
         navigate_to_waypoint(serial_conn, latitude, longitude)
 
     elif mode == '2':
