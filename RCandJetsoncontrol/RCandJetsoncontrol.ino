@@ -17,7 +17,7 @@ const int servoPin = 6;        // Steering servo signal output
 
 // --- RC calibration ---
 const int minPulse = 1000;
-const int neutral = 1500;
+const int neutral = 1495;
 const int maxPulse = 2000;
 const int deadband = 30;
 
@@ -120,7 +120,7 @@ void loop() {
   // --- Step 3: Decide control mode ---
 
   // Throttle neutral = 1490–1550 µs
-  bool rcThrottleNeutral = (thrPulse >= 1460 && thrPulse <= 1530);
+  bool rcThrottleNeutral = (thrPulse >= 1450 && thrPulse <= 1530);
 
   // Steering neutral = ±deadband around 1500
   bool rcSteeringNeutral = (abs(strPulse - neutral) <= deadband);
@@ -203,11 +203,12 @@ void loop() {
   sensors_event_t event;
   bno.getEvent(&event);
   float heading = event.orientation.x; // magnetic heading in degrees
-
+  
+  //Can be reimplimented later
   // Send heading packet
-  Serial.print("<HEAD:");
-  Serial.print(heading, 2); // 2 decimal places
-  Serial.println(">");
+  //Serial.print("<HEAD:");
+  //Serial.print(heading, 2); // 2 decimal places
+  //Serial.println(">");
 
 
 
