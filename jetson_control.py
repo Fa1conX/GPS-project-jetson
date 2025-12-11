@@ -6,9 +6,11 @@ from pathlib import Path
 import math
 from ublox_gps import UbloxGps
 #from Record_data import get_basic_gps_data
-
+#port for Ublox GPS
 port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=1)
 gps = UbloxGps(port)
+
+
 
 
 def input_gps_coordinates():
@@ -96,23 +98,23 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     bearing = math.atan2(x, y)
     return math.degrees(bearing) % 360
 
-#--- new stuff 
-def get_gps_data_for_steering():
+def get_gps_data_and_heading():
     """
     Fetch GPS data from Ublox ZED-F9R for steering purposes.
     Returns:
         lat (float): Latitude in degrees
         lon (float): Longitude in degrees
         ele (float): Elevation in meters
-        heading (float): Heading of motion in degrees (0-360)
+        heading (float): Heading based on imu (0-360)
     """
     try:
         geo = gps.geo_coords()
+        attitude = gps.veh_attitude()  # to get heading
         if geo is not None and geo.lat not in (None, 0.0) and geo.lon not in (None, 0.0):
             lat = geo.lat
             lon = geo.lon
             ele = getattr(geo, 'height', 0.0) / 1000.0  # mm → meters
-            heading = getattr(geo, 'headMot', 0.0)     # degrees, 0-360
+            heading = getattr(attitude, 'heading', None)     # degrees, 0-360
 
             return lat, lon, ele, heading
         else:
@@ -151,7 +153,8 @@ def map_angle_to_steering(relative_angle, max_steering=45):
     else:
         return relative_angle
 
-def read_heading(ser: serial.Serial) -> float:
+#not using this rn, but keeping for reference, It seems that the ZED-F9R 
+def read_heading_Arduino_IMU(ser: serial.Serial) -> float:
     """
     Reads lines from the serial port until it finds a <HEAD:...> packet.
     Returns the heading as a float. Ignores all other debug lines.
@@ -166,8 +169,39 @@ def read_heading(ser: serial.Serial) -> float:
             except ValueError:
                 continue  # malformed number, skip
 
+def check_heading_alignment(gps, max_allowed_error_deg=5.0):
+    """
+    Checks if the ZED-F9R heading alignment is valid.
+    Returns a tuple: (is_aligned: bool, message: str)
+    """
+    # 1. Read IMU alignment (UBX-ESF-ALG)
+    alg = gps.imu_alignment()
+    if alg is None:
+        return (False, "IMU alignment message not available")
 
-# end new stuff
+    # alg.status values:
+    # 0 = initializing, 1 = running, 2 = paused, 3 = fully aligned
+    alignment_status = alg.status
+
+    # 2. Read attitude solution (UBX-NAV-ATT)
+    att = gps.veh_attitude()
+    if att is None:
+        return (False, "Vehicle attitude message not available")
+
+    # Convert heading accuracy (scaled by 1e-5 degrees)
+    acc_heading_deg = att.accHeading * 1e-5
+
+    # 3. Apply criteria
+    if alignment_status != 3:
+        return (False, f"IMU alignment not converged (status={alignment_status})")
+
+    if acc_heading_deg > max_allowed_error_deg:
+        return (False, 
+                f"Heading accuracy too poor: {acc_heading_deg:.2f}° (limit {max_allowed_error_deg}°)")
+
+    return (True, 
+            f"Heading alignment OK (accuracy {acc_heading_deg:.2f}°, status=3)")
+
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     """Approximate distance between two GPS coords using simple trig (flat-earth approximation)."""
@@ -185,21 +219,20 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     # Pythagorean distance
     return math.sqrt(dlat*dlat + dlon*dlon)
 
+
+
 def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_threshold=5.0):
     """Navigate to a given waypoint using GPS data.
-        distance in meters
-
+        distances in meters
     """
 
     print(f"Navigating to waypoint: Latitude {waypoint_lat}, Longitude {waypoint_lon}")
 
     last_recalculation_time = time.time()
     while True:
-        gps_data = get_basic_gps_data()
-
-        if gps_data:
-            current_lat, current_lon, _, _, = get_gps_data_for_steering()
-            current_heading = read_heading(serial_conn)
+        current_lat, current_lon, elevation, current_heading, = get_gps_data_and_heading()
+        align, msg =check_heading_alignment(gps)
+        if current_lat and current_heading and align==True:
             
             # Calculate distance and bearing to waypoint
             distance_to_waypoint = calculate_distance(current_lat, current_lon, waypoint_lat, waypoint_lon)
@@ -210,15 +243,22 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
             # Send commands to Arduino
             if distance_to_waypoint < 30.0:
                 throttle = 40  # Slow down when close
-            elif distance_to_waypoint < 10.0:
+            elif distance_to_waypoint < 5.0:
                 throttle = 20  # Further slow down when very close
             else:
                 throttle = 50  # Normal speed
             relative_angle = calculate_relative_angle(current_heading, bearing_to_waypoint)
             steering = int(map_angle_to_steering(relative_angle, max_steering=45))
+            if abs(90-steering)<10:
+                throttle=throttle
+            elif abs(90-steering)<20:
+                throttle=throttle*0.7
+            elif abs(90-steering)<30:
+                throttle=throttle*0.5
+            else:
+                throttle=throttle*0.3
 
-
-            send_command(serial_conn, throttle, steering)
+            send_command(serial_conn,throttle, steering)
 
             # Recalculate route every second if off-path
             """
@@ -233,14 +273,17 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
                 print("Reached waypoint!")
                 send_command(serial_conn, 0, 90)  # Stop vehicle
                 break
-
+        else:
+            print("heading or gps failed: ")
+            print(align, msg)
+            print(current_lat, current_lon, elevation, current_heading)
         time.sleep(0.1)  # 10 Hz polling rate
 
 
 
 def main():
-    # Serial communication setup
-    serial_port = '/dev/ttyUSB0'  # Adjust based on your setup
+    # Serial communication setup Arduino
+    serial_port = '/dev/ttyUSB0'
     baud_rate = 115200
 
     try:
@@ -249,6 +292,15 @@ def main():
     except serial.SerialException as e:
         print(f"Failed to connect to Arduino: {e}")
         return
+    #-----
+
+    aligned, msg = check_heading_alignment(gps)
+
+    if aligned:
+        print("GOOD →", msg)
+    else:
+        print("BAD →", msg)
+        print("Please ensure proper heading alignment before navigation.")
 
     print("Select mode:")
     print("1. Input GPS coordinates manually")
@@ -257,7 +309,8 @@ def main():
 
     if mode == '1':
         #latitude, longitude = input_gps_coordinates()
-        latitude, longitude = 32.770729, -117.188756 #for testing, coordinates hardcoded
+        latitude, longitude = 32.770729, -117.188756 #for testing, 
+        #coordinates hardcoded for spot in middle of road behind BEC
         print(f"Navigating to Latitude {latitude}, Longitude {longitude}")
         navigate_to_waypoint(serial_conn, latitude, longitude)
 
