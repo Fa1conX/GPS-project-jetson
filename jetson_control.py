@@ -171,36 +171,19 @@ def read_heading_Arduino_IMU(ser: serial.Serial) -> float:
 
 def check_heading_alignment(gps, max_allowed_error_deg=5.0):
     """
-    Checks if the ZED-F9R heading alignment is valid.
-    Returns a tuple: (is_aligned: bool, message: str)
+    ZED-F9R-safe heading alignment check using NAV-ATT only.
     """
-    # 1. Read IMU alignment (UBX-ESF-ALG)
-    alg = gps.imu_alignment()
-    if alg is None:
-        return (False, "IMU alignment message not available")
 
-    # alg.status values:
-    # 0 = initializing, 1 = running, 2 = paused, 3 = fully aligned
-    alignment_status = alg.status
-
-    # 2. Read attitude solution (UBX-NAV-ATT)
     att = gps.veh_attitude()
     if att is None:
-        return (False, "Vehicle attitude message not available")
+        return False, "NAV-ATT not available"
 
-    # Convert heading accuracy (scaled by 1e-5 degrees)
     acc_heading_deg = att.accHeading * 1e-5
 
-    # 3. Apply criteria
-    if alignment_status != 3:
-        return (False, f"IMU alignment not converged (status={alignment_status})")
-
     if acc_heading_deg > max_allowed_error_deg:
-        return (False, 
-                f"Heading accuracy too poor: {acc_heading_deg:.2f}° (limit {max_allowed_error_deg}°)")
+        return False, f"Heading accuracy too poor: {acc_heading_deg:.2f}°"
 
-    return (True, 
-            f"Heading alignment OK (accuracy {acc_heading_deg:.2f}°, status=3)")
+    return True, f"Heading OK (accuracy {acc_heading_deg:.2f}°)"
 
 
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -231,8 +214,8 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
     last_recalculation_time = time.time()
     while True:
         current_lat, current_lon, elevation, current_heading, = get_gps_data_and_heading()
-        align, msg =check_heading_alignment(gps)
-        if current_lat and current_heading and align==True:
+        #align, msg =check_heading_alignment(gps)
+        if current_lat and current_heading: #and align==True:
             
             # Calculate distance and bearing to waypoint
             distance_to_waypoint = calculate_distance(current_lat, current_lon, waypoint_lat, waypoint_lon)
