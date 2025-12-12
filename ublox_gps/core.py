@@ -416,6 +416,14 @@ class Parser:
         # convert them into the packet descriptors
         msg_cls, msg_id, length = struct.unpack('BBH', buff)
 
+        # -------- FIX STARTS HERE --------
+        # If message class or id not registered, skip it
+        if msg_cls not in self.classes or msg_id not in self.classes[msg_cls]:
+            # Skip this message's payload and checksum and return a null tuple
+            stream.read(length + 2)
+            return (None, None, None)
+        # -------- FIX ENDS HERE --------
+
         # check the packet validity
         if msg_cls not in self.classes:
             if ignoreunsupported:
