@@ -416,6 +416,7 @@ class Parser:
         # convert them into the packet descriptors
         msg_cls, msg_id, length = struct.unpack('BBH', buff)
 
+
         # check the packet validity
         if msg_cls not in self.classes:
             if ignoreunsupported:
