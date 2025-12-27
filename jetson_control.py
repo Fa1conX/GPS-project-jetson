@@ -5,16 +5,53 @@ import os
 from pathlib import Path
 import math
 from ublox_gps import UbloxGps
+import threading
 #from Record_data import get_basic_gps_data
-#port for Ublox GPS
-port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=1)
+
+gps_state = {
+    "lat": None,
+    "lon": None,
+    "ele": None,
+    "heading": None,
+    "aligned": False,
+    "last_update": 0.0
+}
+
+gps_lock = threading.Lock()
+
+#Serial port for the Ublox GPS
+port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=0.1)
 gps = UbloxGps(port)
 
+def gps_reader_thread(gps):
+    while True:
+        try:
+            geo = gps.geo_coords()
+            att = gps.veh_attitude()
+            alg = gps.imu_alignment()
 
+            with gps_lock:
+                if geo and geo.lat not in (None, 0.0) and geo.lon not in (None, 0.0):
+                    gps_state["lat"] = geo.lat
+                    gps_state["lon"] = geo.lon
+                    gps_state["ele"] = getattr(geo, "height", 0.0) / 1000.0
+                    gps_state["last_update"] = time.time()
+
+                if att and getattr(att, "heading", None) is not None:
+                    gps_state["heading"] = att.heading
+
+                if alg and alg.status == 3:
+                    gps_state["aligned"] = True
+
+
+        except Exception:
+            pass
 
 
 def input_gps_coordinates():
-    """Prompt the user to input GPS coordinates."""
+    """
+    Prompt the user to input GPS coordinates.
+    """
     try:
         latitude = float(input("Enter latitude: "))
         longitude = float(input("Enter longitude: "))
@@ -24,7 +61,9 @@ def input_gps_coordinates():
         return input_gps_coordinates()
 
 def read_gpx_file():
-    """Prompt the user to specify a GPX file and read coordinates."""
+    """
+    Prompt the user to specify a GPX file and read coordinates.
+    """
     file_path = input("Enter the path to the GPX file: ")
     if not Path(file_path).is_file():
         print("File not found. Please try again.")
@@ -71,8 +110,11 @@ def send_command(serial_conn, throttle, steering):
 
     serial_conn.write(packet)
 
+"""
 def get_basic_gps_data():
-    """Fetch basic GPS data (latitude, longitude) from the Ublox GPS module."""
+    ""
+    #Fetch basic GPS data (latitude, longitude) from the Ublox GPS module.
+    ""
     try:
         geo = gps.geo_coords()
         if geo is not None and geo.lat is not None and geo.lat != 0.0 and geo.lon is not None and geo.lon != 0.0:
@@ -88,6 +130,8 @@ def get_basic_gps_data():
     except (ValueError, IOError) as err:
         print("GPS read error:", err)
         return None
+"""
+
 
 def calculate_bearing(lat1, lon1, lat2, lon2):
     """Calculate the bearing between two GPS coordinates."""
@@ -98,15 +142,16 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     bearing = math.atan2(x, y)
     return math.degrees(bearing) % 360
 
+"""
 def get_gps_data_and_heading():
-    """
-    Fetch GPS data from Ublox ZED-F9R for steering purposes.
-    Returns:
-        lat (float): Latitude in degrees
-        lon (float): Longitude in degrees
-        ele (float): Elevation in meters
-        heading (float): Heading based on imu (0-360)
-    """
+    ""
+    #Fetch GPS data from Ublox ZED-F9R for steering purposes.
+    #Returns:
+    #    lat (float): Latitude in degrees
+    #    lon (float): Longitude in degrees
+    #    ele (float): Elevation in meters
+    #    heading (float): Heading based on imu (0-360)
+    ""
     try:
         geo = gps.geo_coords()
         attitude = gps.veh_attitude()  # to get heading
@@ -123,6 +168,7 @@ def get_gps_data_and_heading():
     except (ValueError, IOError) as err:
         print("GPS read error:", err)
         return None
+"""
 
 def calculate_relative_angle(current_heading, target_bearing):
     """
@@ -153,7 +199,7 @@ def map_angle_to_steering(relative_angle, max_steering=45):
     else:
         return relative_angle
 
-#not using this rn, but keeping for reference, It seems that the ZED-F9R 
+#not using this rn, but keeping for reference, It seems that the ZED-F9R's heading calibrates to true north automatically
 def read_heading_Arduino_IMU(ser: serial.Serial) -> float:
     """
     Reads lines from the serial port until it finds a <HEAD:...> packet.
@@ -228,12 +274,26 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
 
     print(f"Navigating to waypoint: Latitude {waypoint_lat}, Longitude {waypoint_lon}")
 
-    last_recalculation_time = time.time()
+
+
+    #last_recalculation_time = time.time()
     while True:
-        current_lat, current_lon, elevation, current_heading, = get_gps_data_and_heading()
-        align, msg =check_heading_alignment(gps)
-        if current_lat and current_heading and align==True:
-            
+        with gps_lock:
+            current_lat = gps_state["lat"]
+            current_lon = gps_state["lon"]
+            elevation = gps_state["ele"]
+            current_heading = gps_state["heading"]
+            align = gps_state["aligned"]
+
+        if current_lat is not None and current_heading is not None and align:
+            with gps_lock:
+                age = time.time() - gps_state["last_update"]
+
+            if age > 1.0:
+                print("WARNING: GPS data stale")
+                time.sleep(0.1)
+                continue
+
             # Calculate distance and bearing to waypoint
             distance_to_waypoint = calculate_distance(current_lat, current_lon, waypoint_lat, waypoint_lon)
             bearing_to_waypoint = calculate_bearing(current_lat, current_lon, waypoint_lat, waypoint_lon)
@@ -242,41 +302,37 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
 
             # Send commands to Arduino
             if distance_to_waypoint < 30.0:
-                throttle = 40  # Slow down when close
+                throttle = 50  # Slow down when close
             elif distance_to_waypoint < 5.0:
-                throttle = 20  # Further slow down when very close
+                throttle = 30  # Further slow down when very close
             else:
-                throttle = 50  # Normal speed
+                throttle = 60  # Normal speed
             relative_angle = calculate_relative_angle(current_heading, bearing_to_waypoint)
             steering = int(map_angle_to_steering(relative_angle, max_steering=45))
-            if abs(90-steering)<10:
-                throttle=throttle
-            elif abs(90-steering)<20:
-                throttle=throttle*0.7
-            elif abs(90-steering)<30:
-                throttle=throttle*0.5
+            
+            steer_mag = abs(steering)
+
+            if steer_mag < 10:
+                throttle *= 1.0
+            elif steer_mag < 20:
+                throttle *= 0.7
+            elif steer_mag < 30:
+                throttle *= 0.5
             else:
-                throttle=throttle*0.3
+                throttle *= 0.3
 
             send_command(serial_conn,throttle, steering)
-
-            # Recalculate route every second if off-path
-            """
-            current_time = time.time()
-            if current_time - last_recalculation_time >= 2.0:
-                last_recalculation_time = current_time
-                if distance_to_waypoint > off_path_threshold:
-                    print("Recalculating route...")
-            """
+            
             # Stop navigation if close to waypoint
             if distance_to_waypoint < 1.0:
                 print("Reached waypoint!")
                 send_command(serial_conn, 0, 90)  # Stop vehicle
-                break
+                break            
         else:
-            print("heading or gps failed: ")
-            print(align, msg)
-            print(current_lat, current_lon, elevation, current_heading)
+            print("GPS not ready:")
+            print("aligned =", align)
+            print("lat =", current_lat, "heading =", current_heading)
+
         time.sleep(0.1)  # 10 Hz polling rate
 
 
@@ -287,20 +343,22 @@ def main():
     baud_rate = 115200
 
     try:
-        serial_conn = serial.Serial(serial_port, baud_rate, timeout=1)
+        serial_conn = serial.Serial(serial_port, baud_rate, timeout=0.1)
         print(f"Connected to Arduino on {serial_port} at {baud_rate} baud.")
     except serial.SerialException as e:
         print(f"Failed to connect to Arduino: {e}")
         return
     #-----
 
-    aligned, msg = check_heading_alignment(gps)
+    gps_thread = threading.Thread(
+        target=gps_reader_thread,
+        args=(gps,),
+        daemon=True
+    )
+    gps_thread.start()
 
-    if aligned:
-        print("GOOD →", msg)
-    else:
-        print("BAD →", msg)
-        print("Please ensure proper heading alignment before navigation.")
+    print("GPS reader thread started.")
+
 
     print("Select mode:")
     print("1. Input GPS coordinates manually")
