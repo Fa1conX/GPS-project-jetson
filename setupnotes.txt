@@ -34,3 +34,10 @@ link for hookup guide and python package setup: https://learn.sparkfun.com/tutor
 		run this command: 
 			sudo udevadm control --reload-rules && sudo udevadm trigger
 		then REBOOT
+
+#Need to edit the firmware configuration to make sure that the F9R sends position status packets more frequently than 1 HZ, ideally 10HZ+
+#Need windows computer to install U-Blox U-Center 1 for firmware configuration dump.
+1. install and set up U-center
+2. Connect F9R using a usb cable, select the correct COM port and baud rate (9600)
+3. use the "Tools" menu to dump the reciever's firmware configuration file to a text file.
+     edit the text file to update ...
