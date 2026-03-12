@@ -39,8 +39,8 @@ def gps_reader_thread(gps):
                     gps_state["ele"] = getattr(geo, "height", 0.0) / 1000.0
                     gps_state["last_update"] = time.time()
 
-                if att and getattr(att, "heading", None) is not None:
-                    gps_state["heading"] = att.heading
+                #if att and getattr(att, "heading", None) is not None:
+                #    gps_state["heading"] = att.heading
 
                 if alg and alg.status == 3:
                     gps_state["aligned"] = True
