@@ -6,6 +6,8 @@ from pathlib import Path
 import math
 from ublox_gps import UbloxGps
 import threading
+import traceback
+
 #from Record_data import get_basic_gps_data
 
 gps_state = {
@@ -44,8 +46,9 @@ def gps_reader_thread(gps):
                     gps_state["aligned"] = True
 
 
-        except Exception:
-            pass
+        except Exception as e:
+            print("GPS thread error:")
+            traceback.print_exc()
 
 
 def input_gps_coordinates():
