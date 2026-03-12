@@ -22,15 +22,15 @@ gps_state = {
 gps_lock = threading.Lock()
 
 #Serial port for the Ublox GPS
-port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=0.1)
+port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=0.2)
 gps = UbloxGps(port)
 
 def gps_reader_thread(gps):
     while True:
         try:
             geo = gps.geo_coords()
-            att = gps.veh_attitude()
-            alg = gps.imu_alignment()
+            #att = gps.veh_attitude()
+            #alg = gps.imu_alignment()
 
             with gps_lock:
                 if geo and geo.lat not in (None, 0.0) and geo.lon not in (None, 0.0):
@@ -49,6 +49,8 @@ def gps_reader_thread(gps):
         except Exception as e:
             print("GPS thread error:")
             traceback.print_exc()
+        
+        time.sleep(0.05)
 
 
 def input_gps_coordinates():
@@ -329,7 +331,7 @@ def main():
     baud_rate = 115200
 
     try:
-        serial_conn = serial.Serial(serial_port, baud_rate, timeout=0.1)
+        serial_conn = serial.Serial(serial_port, baud_rate, timeout=0.2)
         print(f"Connected to Arduino on {serial_port} at {baud_rate} baud.")
     except serial.SerialException as e:
         print(f"Failed to connect to Arduino: {e}")
