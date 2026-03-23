@@ -8,7 +8,24 @@ from ublox_gps import UbloxGps
 import threading
 import traceback
 
-#from Record_data import get_basic_gps_data
+#============================================================================
+# JETSON GPS AUTONOMOUS NAVIGATION SYSTEM
+#============================================================================
+# Configuration: Which heading source to use when navigating waypoints
+# Options:
+#   "zed_f9r"         - ZED-F9R GPS/IMU (NAV-ATT message, recommended)
+#   "arduino_bno055"  - Arduino BNO055 IMU (via serial, requires calibration)
+#
+# The heading source is selected interactively at startup. Position data
+# always comes from ZED-F9R. Alignment status (ESF-ALG) is optional.
+#
+# Thread-safe GPS state dict: Updated by background gps_reader_thread(),
+# read by navigate_to_waypoint() on main thread via gps_lock.
+#============================================================================
+
+# Configuration: Which heading source to use
+# Will be set by main() based on user selection
+HEADING_SOURCE = None
 
 gps_state = {
     "lat": None,
@@ -16,6 +33,7 @@ gps_state = {
     "ele": None,
     "heading": None,
     "aligned": False,
+    "heading_source": None,  # "zed_f9r" or "arduino_bno055"
     "last_update": 0.0
 }
 
@@ -25,12 +43,29 @@ gps_lock = threading.Lock()
 port = serial.Serial('/dev/ttyTHS1', baudrate=38400, timeout=0.2)
 gps = UbloxGps(port)
 
+# Serial port for Arduino (will be opened in main)
+arduino_serial = None
+
 def gps_reader_thread(gps):
     while True:
         try:
             geo = gps.geo_coords()
-            #att = gps.veh_attitude()
-            #alg = gps.imu_alignment()
+            # Alignment status check (required for safe navigation)
+            alg = None
+            try:
+                alg = gps.imu_alignment()
+            except (ValueError, IOError) as e:
+                # IMU alignment not available; carry on with position-only mode
+                pass
+
+            # Read heading based on configured source
+            att = None
+            if HEADING_SOURCE == "zed_f9r":
+                try:
+                    att = gps.veh_attitude()
+                except (ValueError, IOError) as e:
+                    # Heading not available this cycle; carry on
+                    pass
 
             with gps_lock:
                 if geo and geo.lat not in (None, 0.0) and geo.lon not in (None, 0.0):
@@ -39,18 +74,56 @@ def gps_reader_thread(gps):
                     gps_state["ele"] = getattr(geo, "height", 0.0) / 1000.0
                     gps_state["last_update"] = time.time()
 
-                #if att and getattr(att, "heading", None) is not None:
-                #    gps_state["heading"] = att.heading
+                # Update heading based on configured source
+                if HEADING_SOURCE == "zed_f9r" and att and getattr(att, "heading", None) is not None:
+                    gps_state["heading"] = att.heading
+                    gps_state["heading_source"] = "zed_f9r"
+                elif HEADING_SOURCE == "arduino_bno055" and arduino_serial:
+                    # Try to read heading from Arduino (non-blocking)
+                    heading = read_heading_arduino(arduino_serial)
+                    if heading is not None:
+                        gps_state["heading"] = heading
+                        gps_state["heading_source"] = "arduino_bno055"
 
-                if alg and alg.status == 3:
-                    gps_state["aligned"] = True
-
+                # Set alignment status if available (alg.flags.status == 3 means aligned)
+                if alg and hasattr(alg, 'flags') and hasattr(alg.flags, 'status'):
+                    gps_state["aligned"] = (alg.flags.status == 3)
+                else:
+                    gps_state["aligned"] = False
 
         except Exception as e:
             print("GPS thread error:")
             traceback.print_exc()
         
         time.sleep(0.05)
+
+
+def read_heading_arduino(arduino_port, timeout=0.5):
+    """
+    Non-blocking attempt to read heading from Arduino BNO055.
+    Looks for <HEAD:xxx> format in serial buffer.
+    Returns heading value (0-360) or None if not available.
+    This function doesn't block; it just checks what's available.
+    """
+    if not arduino_port:
+        return None
+    
+    try:
+        # Read available data without blocking
+        if arduino_port.in_waiting > 0:
+            line = arduino_port.readline().decode('utf-8', errors='ignore').strip()
+            if line.startswith("<HEAD:") and line.endswith(">"):
+                heading_str = line[len("<HEAD:"):-1]
+                try:
+                    heading = float(heading_str)
+                    if 0 <= heading < 360:
+                        return heading
+                except ValueError:
+                    pass
+    except Exception as e:
+        pass
+    
+    return None
 
 
 def input_gps_coordinates():
@@ -115,28 +188,6 @@ def send_command(serial_conn, throttle, steering):
 
     serial_conn.write(packet)
 
-"""
-def get_basic_gps_data():
-    ""
-    #Fetch basic GPS data (latitude, longitude) from the Ublox GPS module.
-    ""
-    try:
-        geo = gps.geo_coords()
-        if geo is not None and geo.lat is not None and geo.lat != 0.0 and geo.lon is not None and geo.lon != 0.0:
-            lat = geo.lat
-            lon = geo.lon
-            ele = getattr(geo, 'height', 0.0) / 1000.0  # height above ellipsoid (convert mm to meters)
-            heading = getattr(geo, 'headMot', 0.0)  # heading of motion (degrees)
-                        
-            return lat, lon, ele, heading
-        else:
-            print("Waiting for valid fix...")
-            return None
-    except (ValueError, IOError) as err:
-        print("GPS read error:", err)
-        return None
-"""
-
 
 def calculate_bearing(lat1, lon1, lat2, lon2):
     """Calculate the bearing between two GPS coordinates."""
@@ -147,33 +198,6 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     bearing = math.atan2(x, y)
     return math.degrees(bearing) % 360
 
-"""
-def get_gps_data_and_heading():
-    ""
-    #Fetch GPS data from Ublox ZED-F9R for steering purposes.
-    #Returns:
-    #    lat (float): Latitude in degrees
-    #    lon (float): Longitude in degrees
-    #    ele (float): Elevation in meters
-    #    heading (float): Heading based on imu (0-360)
-    ""
-    try:
-        geo = gps.geo_coords()
-        attitude = gps.veh_attitude()  # to get heading
-        if geo is not None and geo.lat not in (None, 0.0) and geo.lon not in (None, 0.0):
-            lat = geo.lat
-            lon = geo.lon
-            ele = getattr(geo, 'height', 0.0) / 1000.0  # mm → meters
-            heading = getattr(attitude, 'heading', None)     # degrees, 0-360
-
-            return lat, lon, ele, heading
-        else:
-            print("Waiting for valid GPS fix...")
-            return None
-    except (ValueError, IOError) as err:
-        print("GPS read error:", err)
-        return None
-"""
 
 def calculate_relative_angle(current_heading, target_bearing):
     """
@@ -204,38 +228,6 @@ def map_angle_to_steering(relative_angle, max_steering=45):
     else:
         return relative_angle
 
-#not using this rn, but keeping for reference, It seems that the ZED-F9R's heading calibrates to true north automatically
-def read_heading_Arduino_IMU(ser: serial.Serial) -> float:
-    """
-    Reads lines from the serial port until it finds a <HEAD:...> packet.
-    Returns the heading as a float. Ignores all other debug lines.
-    """
-    while True:
-        line = ser.readline().decode('utf-8', errors='ignore').strip()
-        if line.startswith("<HEAD:") and line.endswith(">"):
-            # Extract the number
-            heading_str = line[len("<HEAD:"):-1]  # remove <HEAD: and >
-            try:
-                return float(heading_str)
-            except ValueError:
-                continue  # malformed number, skip
-
-def check_heading_alignment(gps, max_allowed_error_deg=5.0):
-    """
-    ZED-F9R-safe heading alignment check using NAV-ATT only.
-    """
-
-    att = gps.veh_attitude()
-    if att is None:
-        return False, "NAV-ATT not available"
-
-    acc_heading_deg = att.accHeading * 1e-5
-
-    if acc_heading_deg > max_allowed_error_deg:
-        return False, f"Heading accuracy too poor: {acc_heading_deg:.2f}°"
-
-    return True, f"Heading OK (accuracy {acc_heading_deg:.2f}°)"
-
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     """Approximate distance between two GPS coords using simple trig (flat-earth approximation)."""
@@ -256,13 +248,26 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 
 def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_threshold=5.0):
-    """Navigate to a given waypoint using GPS data.
-        distances in meters
+    """Navigate to a given waypoint using GPS/heading data.
+    
+    Continuously reads GPS position and heading from gps_state dict (populated
+    by background gps_reader_thread), calculates bearing and distance to waypoint,
+    and sends steering/throttle commands to Arduino at 10 Hz until waypoint reached.
+    
+    Args:
+        serial_conn: Arduino serial connection for sending motor/steering commands
+        waypoint_lat: Target latitude in degrees
+        waypoint_lon: Target longitude in degrees
+        off_path_threshold: Distance in meters (reserved for future path correction)
+    
+    Stops when distance < 1.0 meter or GPS/heading unavailable for 5+ seconds.
     """
 
     print(f"Navigating to waypoint: Latitude {waypoint_lat}, Longitude {waypoint_lon}")
-
-
+    print(f"Heading source: {HEADING_SOURCE}")
+    
+    ready_wait_count = 0
+    max_ready_wait = 100  # ~5 seconds at 0.1s per iteration before timing out
 
     #last_recalculation_time = time.time()
     while True:
@@ -272,21 +277,27 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
             elevation = gps_state["ele"]
             current_heading = gps_state["heading"]
             align = gps_state["aligned"]
+            heading_source = gps_state["heading_source"]
 
-        if current_lat is not None and current_heading is not None and align:
+        # Check if we have minimum required data for navigation
+        if current_lat is not None and current_heading is not None:
             with gps_lock:
                 age = time.time() - gps_state["last_update"]
 
             if age > 1.0:
-                print("WARNING: GPS data stale")
+                print("WARNING: GPS data stale (age {:.1f}s)".format(age))
                 time.sleep(0.1)
                 continue
+
+            # Log alignment status if available
+            if not align:
+                print("Note: IMU alignment status is FALSE (heading may drift over time)")
 
             # Calculate distance and bearing to waypoint
             distance_to_waypoint = calculate_distance(current_lat, current_lon, waypoint_lat, waypoint_lon)
             bearing_to_waypoint = calculate_bearing(current_lat, current_lon, waypoint_lat, waypoint_lon)
 
-            print(f"Distance to waypoint: {distance_to_waypoint:.2f} m, Bearing: {bearing_to_waypoint:.2f}°")
+            print(f"Distance: {distance_to_waypoint:.2f}m, Bearing: {bearing_to_waypoint:.1f}°, Heading: {current_heading:.1f}°")
 
             # Send commands to Arduino
             if distance_to_waypoint < 30.0:
@@ -295,10 +306,11 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
                 throttle = 30  # Further slow down when very close
             else:
                 throttle = 60  # Normal speed
+            
             relative_angle = calculate_relative_angle(current_heading, bearing_to_waypoint)
             steering = int(map_angle_to_steering(relative_angle, max_steering=45))
             
-            steer_mag = abs(steering)
+            steer_mag = abs(steering - 90)  # Distance from neutral (90)
 
             if steer_mag < 10:
                 throttle *= 1.0
@@ -309,7 +321,10 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
             else:
                 throttle *= 0.3
 
-            send_command(serial_conn,throttle, steering)
+            # Clamp throttle to valid range
+            throttle = int(max(-255, min(255, throttle)))
+            
+            send_command(serial_conn, throttle, steering)
             
             # Stop navigation if close to waypoint
             if distance_to_waypoint < 1.0:
@@ -317,15 +332,23 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
                 send_command(serial_conn, 0, 90)  # Stop vehicle
                 break            
         else:
-            print("GPS not ready:")
-            print("aligned =", align)
-            print("lat =", current_lat, "heading =", current_heading)
+            # Still waiting for GPS/heading to be ready
+            ready_wait_count += 1
+            if ready_wait_count % 10 == 0:  # Print every 1 second
+                print(f"Waiting for GPS/heading ready... (lat: {current_lat}, heading: {current_heading}, aligned: {align})")
+            
+            if ready_wait_count > max_ready_wait:
+                print("ERROR: GPS or heading not available after timeout. Check connection and heading source configuration.")
+                send_command(serial_conn, 0, 90)  # Stop vehicle before exiting
+                break
 
         time.sleep(0.1)  # 10 Hz polling rate
 
 
 
 def main():
+    global HEADING_SOURCE, arduino_serial
+    
     # Serial communication setup Arduino
     serial_port = '/dev/ttyUSB0'
     baud_rate = 115200
@@ -336,6 +359,10 @@ def main():
     except serial.SerialException as e:
         print(f"Failed to connect to Arduino: {e}")
         return
+    
+    # Store Arduino connection globally for GPS thread access
+    arduino_serial = serial_conn
+    
     #-----
 
     gps_thread = threading.Thread(
@@ -347,6 +374,22 @@ def main():
 
     print("GPS reader thread started.")
 
+    # Select heading source
+    print("\nSelect heading source:")
+    print("1. ZED-F9R GPS/IMU (recommended)")
+    print("2. Arduino BNO055 IMU (requires BNO055 calibration)")
+    heading_choice = input("Enter heading source (1 or 2): ")
+    
+    if heading_choice == '1':
+        HEADING_SOURCE = "zed_f9r"
+        print("Using ZED-F9R heading source.")
+    elif heading_choice == '2':
+        HEADING_SOURCE = "arduino_bno055"
+        print("Using Arduino BNO055 heading source.")
+        print("IMPORTANT: Ensure the vehicle is facing true north when BNO055 powers on!")
+    else:
+        print("Invalid heading source selection. Defaulting to ZED-F9R.")
+        HEADING_SOURCE = "zed_f9r"
 
     print("Select mode:")
     print("1. Input GPS coordinates manually")
