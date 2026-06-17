@@ -3,7 +3,6 @@ import time
 import math
 import os
 from pathlib import Path
-import math
 from ublox_gps import UbloxGps
 import threading
 import traceback
@@ -148,7 +147,7 @@ def read_gpx_file():
         return read_gpx_file()
 
     coordinates = []
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding="utf-8") as file:
         for line in file:
             if '<trkpt' in line:
                 parts = line.split('"')
@@ -299,32 +298,37 @@ def navigate_to_waypoint(serial_conn, waypoint_lat, waypoint_lon, off_path_thres
 
             print(f"Distance: {distance_to_waypoint:.2f}m, Bearing: {bearing_to_waypoint:.1f}°, Heading: {current_heading:.1f}°")
 
-            # Send commands to Arduino
-            if distance_to_waypoint < 30.0:
-                throttle = 50  # Slow down when close
-            elif distance_to_waypoint < 5.0:
-                throttle = 30  # Further slow down when very close
-            else:
-                throttle = 60  # Normal speed
-            
+            # Calculate relative angle and steering
             relative_angle = calculate_relative_angle(current_heading, bearing_to_waypoint)
-            steering = int(map_angle_to_steering(relative_angle, max_steering=45))
-            
-            steer_mag = abs(steering - 90)  # Distance from neutral (90)
+            steering_angle = map_angle_to_steering(relative_angle, max_steering=45)  # Returns [-45, 45]
+            steer_mag = abs(steering_angle)  # Magnitude of steering angle [0, 45]
 
-            if steer_mag < 10:
-                throttle *= 1.0
-            elif steer_mag < 20:
-                throttle *= 0.7
-            elif steer_mag < 30:
-                throttle *= 0.5
+            # Calculate throttle with distance-based reductions
+            if distance_to_waypoint < 5.0:
+                throttle = 38  # 15% of 255 (very close, slow down more)
+            elif distance_to_waypoint < 30.0:
+                throttle = 51  # 20% of 255 (close, slow down)
             else:
-                throttle *= 0.3
+                throttle = 77  # 30% of 255 (normal max speed)
+            
+            # Apply steering magnitude multiplier
+            if steer_mag < 10:
+                throttle *= 1.0  # Straight: full throttle
+            elif steer_mag < 20:
+                throttle *= 0.7  # Slight turn: 70% throttle
+            elif steer_mag < 30:
+                throttle *= 0.5  # Moderate turn: 50% throttle
+            else:
+                throttle *= 0.3  # Sharp turn: 30% throttle
 
             # Clamp throttle to valid range
             throttle = int(max(-255, min(255, throttle)))
             
-            send_command(serial_conn, throttle, steering)
+            # Convert steering angle from [-45, 45] to Arduino servo range [45, 135]
+            # where 90 is neutral, <90 is left, >90 is right
+            steering_servo = int(90 + steering_angle)
+            
+            send_command(serial_conn, throttle, steering_servo)
             
             # Stop navigation if close to waypoint
             if distance_to_waypoint < 1.0:
