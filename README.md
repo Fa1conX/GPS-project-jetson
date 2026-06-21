@@ -42,12 +42,13 @@ pip install pyserial
    newgrp dialout  # Apply immediately
    ```
 
-3. (Optional) Set udev rules for persistent permissions:
+3. Set udev rules for persistent permissions:
    ```bash
    sudo nano /etc/udev/rules.d/99-uart-permissions.rules
    # Add: KERNEL=="ttyTHS1", MODE="0666"
    sudo udevadm control --reload-rules && sudo udevadm trigger
    ```
+   (restart)
 
 4. Verify GPIO UART works:
    ```bash
